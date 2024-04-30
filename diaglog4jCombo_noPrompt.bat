@@ -52,6 +52,7 @@ set i=0
 for %%a in (log4j*) do set /a i+=1
 if %i% gtr %maxfile% GOTO :EXIT_TOO_MANY
 
+<<<<<<< HEAD
 @echo off
 FOR %%i IN ("%CD%\..") DO SET "folderName=%%~nxi"
 echo Parent folder: %folderName%
@@ -64,6 +65,15 @@ for %%a in (log4j*) do echo [%%a] >> log4all.%logName%.log & type "%%a" >> log4a
 
 
 start %editor%  log4all.%logName%.log
+=======
+
+for %%a in (log4j*) do echo [%%a] >> log4all.log & type "%%a" >> log4all.log 
+
+
+
+
+start %editor%  log4all.log
+>>>>>>> origin/main
 
 
 goto :eof
