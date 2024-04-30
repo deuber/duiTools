@@ -1,0 +1,318 @@
+@echo off
+setlocal enabledelayedexpansion
+
+
+REM Author David Deuber
+
+REM =============================================================
+REM This tool does a recursive search on your PDT results
+REM First arguement is required directory where you want to search
+REM ==============================================================
+
+
+
+set argCount=0
+for %%x in (%*) do (
+   set /A argCount+=1
+   set "argVec[!argCount!]=%%~x"
+)
+
+IF %argCount% equ 0 (goto BLANK )
+IF %argCount% equ 1 (goto ONE )
+IF %argCount% gtr 1 (goto MAX )
+
+::default editor
+set editor="C:\Program Files\glogg\glogg.exe"
+
+:ONE
+rem take input from user and clean up if needed
+set logDir=%1
+rem Does string have a trailing slash? if so remove it 
+IF %logDir:~-1%==\ SET logDir=%logDir:~0,-1%
+IF EXIST %logDir% (@echo Running recursive search in %logDir%) ELSE (GOTO :NODIR)
+set results=%logDir%
+set logDir=%logDir%_diagsearch_logs
+@echo Saving search results to %logDir%
+@echo Diagsearch will look for strings within all files within the PDT results 
+@echo This might take a awhile depending on the size of your PDT results
+mkdir %logDir% 2>nul
+
+rem Start fresh changelog
+del %logDir%\change.log 2>nul
+
+
+
+@echo --------------------------------
+del %logDir%\polarion.log 2>nul
+@echo creating file %logDir%/polarion.log
+@echo ############################################################## >  %logDir%/polarion.log
+@echo THIS LOG CONTAINS INFORMATION ON POLARION VERSION AND CONFIGURATION >>  %logDir%/polarion.log
+@echo Each instance running Polarion must have the same Polarion version >>  %logDir%/polarion.log
+@echo This log file shows if extensions are used >>  %logDir%/polarion.log
+@echo This log file shows if patches are used >>  %logDir%/polarion.log
+@echo This log file shows nodeId >>  %logDir%/polarion.log
+@echo This log file shows what os is used (linux or Windows) >>  %logDir%/polarion.log
+@echo This log file shows in what context Polarion was started  >>  %logDir%/polarion.log
+@echo This log file shows in when Polarion was started  >>  %logDir%/polarion.log
+@echo This log file shows Architecture >>  %logDir%/polarion.log
+@echo This log file shows Linux distribution name >>  %logDir%/polarion.log
+@echo This log shows server start mode, reindex or normal>>  %logDir%/polarion.log
+@echo ############################################################## >>  %logDir%/polarion.log
+findstr  /s /p /c:"AppLaunchersManager  - Version" ^
+ /s /p /c:"AppLaunchersManager  - Build" ^
+  /s /p /c:"Host:" ^
+ /s /p /c:"AppLaunchersManager  - Extensions" ^
+ /s /p /c:"AppLaunchersManager  - Patches" ^
+ /s /p /c:"AppLaunchersManager - Version" ^
+ /s /p /c:"AppLaunchersManager - Build" ^
+ /s /p /c:"AppLaunchersManager - Extensions" ^
+ /s /p /c:"AppLaunchersManager - Patches" ^
+ /s /p /c:"nodeId" ^
+ /s /p /c:"org.osgi.framework.processor" ^
+ /s /p /c:"java.vm.name" ^
+ /s /p /c:"JVM system property os.name:" ^
+ /s /p /c:"Cluster service" ^
+ /s /p /c:"Using logging context" ^
+ /s /p /c:"Linux distribution name:" ^
+ /s /p /c:"Server start mode:" ^
+ /s /p /c:"Polarion started" ^
+%1\* | findstr /v  "backup" | findstr /v  "bkp"| findstr /v  "WARN" | findstr /v  "orig" | findstr /v  "Copy" | findstr /v  "backup" |findstr /v  "#" |  FINDSTR /v /r "data_jobs_logs" |  FINDSTR /v /r "metadata_logs" |  FINDSTR /v  "log4all.log"   >>  %logDir%/polarion.log
+@echo opening  %logDir%/polarion.log
+start %editor%  %logDir%/polarion.log
+
+
+
+@echo --------------------------------
+del %logDir%\svn.log 2>nul
+@echo creating file %logDir%/svn.log
+@echo ############################################################## > %logDir%/svn.log
+@echo THIS LOG CONTAINS INFORMATION ON SVN VERSION AND CONFIGURATION  >> %logDir%/svn.log
+@echo General recommendation for Subversion 1.9 on any 2016 or later environment  >> %logDir%/svn.log
+@echo For improved performance use SVN Protocol  >> %logDir%/svn.log
+@echo Always use SVN Path Authz short_circuit !!! >> %logDir%/svn.log
+@echo Warning: IF repoSystem=svn missing below it then not used >> %logDir%/svn.log
+@echo Warning: SVNserve config is only available in 22r2 see REQ-17772 >> %logDir%/svn.log
+@echo See https://subversion.apache.org/docs/release-notes/1.9.html for which format >> %logDir%/svn.log
+
+@echo ############################################################## >> %logDir%/svn.log
+@echo ############################################################## >> %logDir%/svn.log
+findstr /s /p /c:"mod_dav_svn.so=" ^
+/s /p /c:"SVNInMemoryCacheSize" ^
+/s /p /c:"repoSystem" ^
+/s /p /c:"short_circuit" ^
+/s /p /c:"Revisions:" ^
+/s /p /c:"Repository Format:" ^
+/s /p /c:"Filesystem Format:" ^
+%1\* findstr /v /c:"#" | findstr /v /c:"polarion.lic.old" | findstr /v /c:"#" | findstr /v /c:"420m" | findstr /v /c:"_info.txt_" | findstr /v /c:"shared" | FINDSTR /v /r "data_jobs_logs" | FINDSTR /v /r "data_jobs_logs" |  FINDSTR /v /r "metadata_logs" |  FINDSTR /v  "log4all.log"  >> %logDir%/svn.log
+
+REM find the file called that ends with svnserve_service_configuration.txt
+set "target_file=svnserve_service_configuration.txt"
+set "output_file=pdt\found_svnserve_service_configuration.txt"
+
+for /r %%i in (*%target_file%) do (
+    echo Found file: %%i
+    type "%%i" >> "%output_file%"
+)
+
+echo found:
+echo  %output_file%
+
+REM read the new file and append it to svn.log
+type %output_file% >> %logDir%/svn.log
+REM delete no longer needed file
+del %output_file%
+
+
+
+@echo opening %logDir%/svn.log
+start %editor% %logDir%/svn.log
+
+
+@echo --------------------------------
+del %logDir%\java.log 2>nul
+@echo creating file %logDir%/java.log
+@echo ############################################################## > %logDir%/java.log
+@echo THIS LOG CONTAINS INFORMATION ON JAVA VERSION AND CONFIGURATION  >> %logDir%/java.log
+@echo This log shows Java version, number of processors, Xms and Xms settings and Total physical memory size  >> %logDir%/java.log
+@echo The Xmx value typically should be Total physical memory divided by two >> %logDir%/java.log
+@echo If you see java.lang.OutOfMemoryErrors, ask for heap dump (.hprof) found in /polarion/data folder >> %logDir%/java.log
+@echo The almNamedUsers shows Concurrent, logged-on users >> %logDir%/java.log
+@echo See Enterprise Example hardware configurations for Enviroments (small-med-large-xl) >> %logDir%/java.log
+@echo ############################################################## >> %logDir%/java.log
+findstr /s /p /c:"environment.jvm.systemProperty.java.endorsed.dirs" ^
+/s /p /c:"Total physical memory size" ^
+/s /p /c:"Number of processors" ^
+/s /p /c:"Xms" ^
+/s /p /c:"Xmx" ^
+/s /p /c:"java.runtime.version =" ^
+/s /p /c:"java.vm.version =" ^
+/s /p /c:"java.lang.OutOfMemoryError" ^
+%1\* | findstr /v /c:"#" | findstr /v /c:"polarion.lic.old" | findstr /v /c:"420m" | findstr /v /c:"javascript" | findstr /v /c:"256m" | findstr /v /c:"shared" | FINDSTR /v /r "data_jobs_logs" | FINDSTR /v /r "data_jobs_logs" |  FINDSTR /v /r "metadata_logs" |  FINDSTR /v  "log4all.log"  >> %logDir%/java.log
+@echo opening %logDir%/java.log
+start %editor% %logDir%/java.log
+
+
+@echo --------------------------------
+del %logDir%\ram.log 2>nul
+@echo creating %logDir%/ram.log
+@echo ############################################################## > %logDir%/ram.log
+@echo THIS LOG CONTAINS INFORMATION ABOUT RAM USAGE >> %logDir%/ram.log
+@echo  If Gen pool shows very random results or low, you could have issues with lack of memory >> %logDir%/ram.log
+@echo  Out of Memory messages mean you need to review XMX and XMS settings >> %logDir%/ram.log
+@echo ############################################################## >> %logDir%/ram.log
+findstr /s /p /c:"Old Gen pool" ^
+ /s /p /c:"Out of memory" ^
+ %1\* | findstr /v /c:"#" |  FINDSTR /v /r "data_jobs_logs" |  FINDSTR /v /r "metadata_logs"  |  FINDSTR /v  "log4all.log"  >> %logDir%/ram.log
+@echo opening %logDir%/ram.log
+start %editor% %logDir%/ram.log
+
+@echo --------------------------------
+del %logDir%\cpu.log 2>nul
+@echo creating %logDir%/cpu.log
+@echo ############################################################## > %logDir%/cpu.log
+@echo THIS LOG CONTAINS INFORMATION ABOUT CPU NAME and PERFORMANCE >> %logDir%/cpu.log
+@echo On Windows see PROCESSOR_IDENTIFIER to identify the cpu>> %logDir%/cpu.log
+@echo On Linux see model name to identify the cpu>> %logDir%/cpu.log
+@echo Google search the cpu name to get more info about processor, adequate?  >> %logDir%/cpu.log
+@echo See Enterprise Example hardware configurations for Enviroments (small-med-large-xl) >> %logDir%/cpu.log
+@echo ############################################################## >> %logDir%/cpu.log
+findstr /s /p /c:"environmentVariable.PROCESSOR_IDENTIFIER" ^
+/s /p /c:"model name" ^
+/s /p /c:"Number of processors" ^
+%1\* | findstr /v /c:"cpuinfo" |  FINDSTR /v /r "data_jobs_logs" |  FINDSTR /v /r "metadata_logs" |  FINDSTR /v  "log4all.log"   >> %logDir%/cpu.log
+@echo ############################################################## >> %logDir%/cpu.log
+@echo Searching for string "Total time for which application threads were stopped"  >> %logDir%/cpu.log
+@echo Warning: High total time of threads were stopped indicates issues with garbage collection >> %logDir%/cpu.log
+@echo To better visualize garbage collection upload your gc.log here http://gceasy.io/ >> %logDir%/cpu.log
+@echo Grep on "Full GC" withn Glogg UI >> %logDir%/cpu.log
+@echo If Full GC cycles don't resolve to Zero, the cpu might not be fast enough or inadequate memory >> %logDir%/cpu.log
+@echo ############################################################## >> %logDir%/cpu.log
+findstr  /s /p /c:"Total time for which application threads were stopped" ^
+/s /p /c:"Full GC cycles" ^
+%1\* | findstr /v /c:"#" |  FINDSTR /v /r "data_jobs_logs" |  FINDSTR /v /r "metadata_logs"  |  FINDSTR /v  "log4all.log"  >> %logDir%/cpu.log
+@echo opening %logDir%/cpu.log
+start %editor% %logDir%/cpu.log
+
+
+@echo --------------------------------
+del %logDir%\concerns.log 2>nul
+@echo creating %logDir%/concerns.log
+@echo ############################################################## > %logDir%/concerns.log
+@echo THIS LOG CONTAINS INFORMATION ABOUT POSSIBLECONCERNs  >> %logDir%/concerns.log
+@echo Looks for when Polarion ran of Memory or Disk space >> %logDir%/concerns.log
+@echo Looks for when Server was shutdown remotely >> %logDir%/concerns.log
+@echo Looks for if Java Certs Issue >> %logDir%/concerns.log
+@echo Looks for if unsupported PSO-SE USED >> %logDir%/concerns.log
+@echo Looks for number of Concurrent user logged in >> %logDir%/concerns.log
+@echo Looks for total number of Projects >> %logDir%/concerns.log
+@echo Looks for AH00484: server reached MaxRequestWorkers setting >> %logDir%/concerns.log
+@echo Looks for com.siemens.polarion.collaborationNotifications.enabled setting >> %logDir%/concerns.log
+@echo See Enterprise Example hardware configurations for Enviroments (small-med-large-xl) https://docs.sw.siemens.com/en-US/doc/230235217/PL20220419389880191.enterprise_setup/xid1398196 >> %logDir%/concerns.log
+@echo If "took too long to process" see https://docs.sw.siemens.com/en-US/doc/230235217/PL20221020258116340.xid1944826/xid1603592 >> %logDir%/concerns.log
+@echo If "server reached MaxRequestWorkers" see https://docs.sw.siemens.com/en-US/doc/230235217/PL20221020258116340.xid1944826/xid2211539 >> %logDir%/concerns.log
+@echo ############################################################## >> %logDir%/concerns.log
+findstr /s /p /c:"No space left on device" ^
+/s /p /c:"java.lang.OutOfMemoryError" ^
+/s /p /c:"Executing remote control command 'shutdown' as requested by" ^
+/s /p /c:"PKIX" ^
+/s /p /c:"AH00484: server reached MaxRequestWorkers setting" ^
+/s /p /c:"took too long to process and was stopped to avoid clogging the server" ^
+/s /p /c:"peak" ^
+/s /p /c:"Initializing context: "[GLOBAL]"" ^
+/s /p /c:"com.siemens.polarion.collaborationNotifications.enabled" ^
+/s /p /c:"Scripting Engine Service ver:" ^
+/s /p /c:"Specification Version:" ^
+/s /p /c:"Scripting Engine Package Service Vendor:" ^
+/s /p /c:"SE Library Service Title:" ^
+/s /p /c:"SE Library Service ver:" ^
+/s /p /c:"SE Library Service Vendor:" ^
+/s /p /c:"Scripting Engine Service Title" ^
+%1\*  |  FINDSTR /v /r "data_jobs_logs" | findstr /v /c:"#" | FINDSTR /v /r "metadata_logs"  |  FINDSTR /v  "log4all.log"   >> %logDir%/concerns.log
+@echo opening %logDir%/concerns.log
+start %editor% %logDir%/concerns.log
+
+
+@echo --------------------------------
+del %logDir%\jobs.log 2>nul
+@echo creating %logDir%/jobs.log
+@echo ############################################################## > %logDir%/jobs.log
+@echo THIS LOG CONTAINS A HISTORY OF FINISHED AND FAILED JOBS >> %logDir%/jobs.log
+@echo Admins should disabled not needed legacy jobs  >> %logDir%/jobs.log
+@echo Legacy examples are any job with ".build" found in default sceduler.xml  >> %logDir%/jobs.log
+@echo Newer installs they are disabled >> %logDir%/jobs.log
+@echo Unlikely needed legacy jobs list: "All Calculations" "Work Item Analysis" "Repository Analysis" "Process Audit" "Live CMMI" "E-library Nightly Build" >> %logDir%/jobs.log >> %logDir%/jobs.log
+@echo Admins should disable or fix failing jobs >> %logDir%/jobs.log
+@echo ############################################################## >> %logDir%/jobs.log
+findstr /s /p /c:"No Post-Hook script found" ^
+/s /p /c:"Summary for 'job:" ^
+/s /p /c:"is FAILED" ^
+ %1\* | findstr /v /c:"#" |  FINDSTR /v /r "data_jobs_logs" |  FINDSTR /v /r "metadata_logs"  |  FINDSTR /v  "log4all.log" >> %logDir%/jobs.log
+@echo opening %logDir%/jobs.log
+start %editor% %logDir%/jobs.log
+
+
+
+
+@echo --------------------------------
+del %logDir%\scriptIssues.log 2>nul
+@echo creating %logDir%/scriptIssues.log
+@echo ############################################################## > %logDir%/scriptIssues.log
+@echo THIS LOG CONTAINS ISSUES THAT ARE LIKELY A RESULT OF BROKEN OR MISSING SCRIPTS >> %logDir%/scriptIssues.log
+@echo Shows missing Post-Hook scripts >> %logDir%/scriptIssues.log
+@echo Shows missing Pre-Hook scripts >> %logDir%/scriptIssues.log
+@echo Shows Errors while parsing velocity >> %logDir%/scriptIssues.log >> %logDir%/scriptIssues.log
+@echo ############################################################## >> %logDir%/scriptIssues.log
+findstr /s /p /c:"No Post-Hook script found" ^
+/s /p /c:"No Pre-Hook script found" ^
+/s /p /c:"Error while parsing velocity" ^
+ %1\* | findstr /v /c:"#" |  FINDSTR /v /r "data_jobs_logs" |  FINDSTR /v /r "metadata_logs"  |  FINDSTR /v  "log4all.log" >> %logDir%/scriptIssues.log
+@echo opening %logDir%/scriptIssues.log
+start %editor% %logDir%/scriptIssues.log
+
+
+@echo --------------------------------
+del %logDir%\3rdParty.log 2>nul
+@echo creating %logDir%/3rdParty.log
+@echo ############################################################## > %logDir%/3rdParty.log
+@echo THIS LOG CONTAINS INFORMATION ON POSTGRESQL APACHE AND SVN VERSION >> %logDir%/3rdParty.log
+@echo This log file only shows apache version>>  %logDir%/3rdParty.log
+@echo If cluster environment SAME timeout should be used on all servers >>  %logDir%/3rdParty.log
+@echo ############################################################## > %logDir%/3rdParty.log
+findstr /s /p /c:"(PostgreSQL)" ^
+/s /p /c:"timeout=" ^
+/s /p /c:"Server version:" ^
+/s /p /c:"mod_dav_svn.so=" ^
+%1\* | findstr /v /c:"#" |  FINDSTR /v /r "data_jobs_logs" |  FINDSTR /v /r "metadata_logs" |  FINDSTR /v  "log4all.log"   >> %logDir%/3rdParty.log
+@echo opening %logDir%/3rdParty.log
+start %editor% %logDir%/3rdParty.log
+goto :eof
+
+:NODIR
+@echo Warning: Directory not found
+@echo diagsearch requires one arguement, the directory where you want to search 
+@echo Exiting script
+goto :eof
+
+rem :EXIT
+rem @echo --------------------------------------
+rem @echo ERROR: missing required editor
+rem @echo Download or fix your path %editor% 
+rem @echo Exiting program
+rem @echo --------------------------------------
+rem goto :eof
+
+
+:BLANK
+@echo Warning: No arguement given
+@echo What Directory do you want to search in?
+goto :eof
+
+:MAX
+@echo Warning: Too many arguements
+@echo What you want to search for?
+goto :eof
+
+
+
+
+
